@@ -97,13 +97,11 @@ namespace ServidorDeTurnos
         private void hiloCliente(object socket)
         {
             string newUserName = "";
-            string mensaje;
             int defaultPass = 1234;
             int pass;
             string passRoute = Environment.GetEnvironmentVariable("userprofile") + "\\pin.bin";
             Socket cliente = (Socket)socket;
-            IPEndPoint ieCliente = (IPEndPoint)cliente.RemoteEndPoint;
-            bool isConnected = true;
+            IPEndPoint ieCliente = (IPEndPoint)cliente.RemoteEndPoint; 
             Console.WriteLine(
                 "Connected with client {0} at port {1}",
                 ieCliente.Address,
