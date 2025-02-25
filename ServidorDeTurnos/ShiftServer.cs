@@ -12,55 +12,70 @@ namespace ServidorDeTurnos
 {
     internal class ShiftServer
     {
+        private static readonly object l = new object();
+
         public string[] users;
         public List<string> waitQueue; //Tambien estan esperando por silksong Ç_Ç  
 
-        private static readonly object l = new object();
         static bool isServerRunning = true;
         static Socket s;
-        static int[] ports = { 31416, 1024, 1025, 1026, 1027, 1028, 1029, 1030 };
+        static int port = 31416;
+        bool firstTime = true;
         static IPEndPoint ie;
-        public List<StreamWriter> clientes = new List<StreamWriter>();
         public List<string> clientsName = new List<string>();
+
 
 
         public void Init()
         {
-            //ReadNames("C:\\Users\\Alejandro\\Desktop\\usuarios.txt");
 
-            //string route = Environment.GetEnvironmentVariable("userprofile") + "\\pin.bin";
-
-            //Console.WriteLine(ReadPin(route));
-
-
+            ReadNames(Environment.GetEnvironmentVariable("userprofile") + "\\usuarios.txt");
+            waitQueue = new List<string>();
             leerLista();
 
             bool isPortSet = false;
-            int cont = 0;
+
+            //try
+            //{
+            //    string directory = Environment.GetEnvironmentVariable("userprofile");
+            //    using (BinaryWriter bw = new BinaryWriter(new FileStream(directory + "\\pin.bin", FileMode.Create)))
+            //    {
+            //        bw.Write(1111);
+            //    }
+            //}
+            //catch (Exception ex) when (ex is IOException || ex is IOException)
+            //{
+            //    throw;
+            //}
 
             do
             {
-                if (cont < ports.Length)
+                try
                 {
-                    try
-                    {
-                        ie = new IPEndPoint(IPAddress.Any, ports[cont]);
-                        s = new Socket(
-                            AddressFamily.InterNetwork,
-                            SocketType.Stream,
-                            ProtocolType.Tcp
-                        );
-                        s.Bind(ie);
-                        isPortSet = true;
-                    }
-                    catch (Exception ex)
-                        when (ex is SocketException || ex is ObjectDisposedException)
-                    {
-                        isPortSet = false;
-                    }
+                    ie = new IPEndPoint(IPAddress.Any, port);
+                    s = new Socket(
+                        AddressFamily.InterNetwork,
+                        SocketType.Stream,
+                        ProtocolType.Tcp
+                    );
+                    s.Bind(ie);
+                    isPortSet = true;
                 }
-                cont++;
-            } while (!isPortSet && cont < ports.Length);
+                catch (Exception ex)
+                    when (ex is SocketException || ex is ObjectDisposedException)
+                {
+                    if (firstTime)
+                    {
+                        firstTime = false;
+                        port = 1024;
+                    }
+                    else
+                    {
+                        port++;
+                    }
+
+                }
+            } while (!isPortSet);
 
             if (!isPortSet)
             {
@@ -74,7 +89,6 @@ namespace ServidorDeTurnos
 
             Console.WriteLine("Server waiting at port {0}", ie.Port);
 
-            ReadNames(Environment.GetEnvironmentVariable("userprofile") + "\\usuarios.txt");
 
             while (isServerRunning)
             {
@@ -101,7 +115,7 @@ namespace ServidorDeTurnos
             int pass;
             string passRoute = Environment.GetEnvironmentVariable("userprofile") + "\\pin.bin";
             Socket cliente = (Socket)socket;
-            IPEndPoint ieCliente = (IPEndPoint)cliente.RemoteEndPoint; 
+            IPEndPoint ieCliente = (IPEndPoint)cliente.RemoteEndPoint;
             Console.WriteLine(
                 "Connected with client {0} at port {1}",
                 ieCliente.Address,
@@ -113,35 +127,44 @@ namespace ServidorDeTurnos
             {
                 try
                 {
-                    sw.WriteLine("Welcome to the Silksong Waiting Queue server");
-                    sw.WriteLine("Indique su nombre:");
+                    sw.WriteLine("Welcome to the Silksong Waiting Queue server, Indique su nombre:\n");
                     sw.Flush();
                     newUserName = sr.ReadLine();
 
                     bool isAdmin = newUserName == "admin";
 
+
                     if (!users.Contains(newUserName) && !isAdmin)
                     {
                         sw.WriteLine("Usuario desconocido");
                         sw.Flush();
+                        cliente.Close();
                     }
-                    else
+
+
+
+                    if (isAdmin)
                     {
-                        if (isAdmin)
+                        lock (l)
                         {
+
                             defaultPass = ReadPin(passRoute) != -1 ? ReadPin(passRoute) : defaultPass;
                             sw.WriteLine("Por favor, indique la contraseña de administrador");
+                            sw.Flush();
                             int.TryParse(sr.ReadLine(), out pass);
-
-                            if (defaultPass != pass)
-                            {
-                                cliente.Close();
-                            }
                         }
 
+                        if (defaultPass != pass)
+                        {
+                            cliente.Close();
+                        }
+                    }
+
+                    do
+                    {
                         switch (sr.ReadLine())
                         {
-                            case string comand when comand is "list":
+                            case string comand when comand == "list":
                                 foreach (string alumnos in waitQueue)
                                 {
                                     sw.WriteLine($"->{alumnos}");
@@ -153,33 +176,36 @@ namespace ServidorDeTurnos
                                 }
 
                                 break;
-                            case string comand when comand is "add":
+                            case string comand when comand == "add":
                                 List<string> namesList = new List<string>();
-                                foreach (var item in waitQueue)
+                                lock (l)
                                 {
-                                    namesList.Add(item.Split(':')[0]);
-                                }
+                                    foreach (var item in waitQueue)
+                                    {
+                                        namesList.Add(item.Split(':')[0]);
+                                    }
 
-                                if (!namesList.Contains(newUserName))
-                                {
-                                    waitQueue.Add(newUserName + ":" + DateTime.Now.ToString());
+                                    if (!namesList.Contains(newUserName))
+                                    {
+                                        waitQueue.Add(newUserName + ":" + DateTime.Now.ToString());
+                                    }
                                 }
                                 sw.WriteLine("OK");
                                 sw.Flush();
-                                if (isAdmin)
-                                {
-                                    cliente.Close();
-                                }
                                 break;
-                            case string comand when comand.Split(' ')[0] is "del" && isAdmin:
+
+                            case string comand when comand.Split(' ')[0] == "del" && isAdmin:
                                 bool error = true;
 
-                                if (comand.Split(':').Length == 2 && int.TryParse(comand.Split(':')[1], out int pos))
+                                if (comand.Split(' ').Length == 2 && int.TryParse(comand.Split(' ')[1], out int pos))
                                 {
-                                    if (pos <= waitQueue.Count - 1)
+                                    lock (l)
                                     {
-                                        error = false;
-                                        waitQueue.RemoveAt(pos);
+                                        if (pos <= waitQueue.Count - 1 && waitQueue.Count > 0 && pos > 0)      
+                                        {
+                                            error = false;
+                                            waitQueue.RemoveAt(pos);
+                                        }
                                     }
                                 }
 
@@ -191,46 +217,49 @@ namespace ServidorDeTurnos
 
                                 break;
 
-                            case string comand when comand.Split(' ')[0] is "chpin" && isAdmin:
-                                if (Int32.TryParse(comand.Split(' ')[1], out Int32 result))
+                            case string comand when comand.Split(' ')[0] == "chpin" && isAdmin:
+                                if (comand.Split(' ').Length == 2 && Int32.TryParse(comand.Split(' ')[1], out Int32 result))
                                 {
-                                    try
+                                    if (result > 999 && result < 9999)
                                     {
-                                        string directory = Environment.GetEnvironmentVariable("userprofile");
-                                        using (BinaryWriter bw = new BinaryWriter(new FileStream(directory + "\\pin.bin", FileMode.Create)))
+                                        try
                                         {
-                                            bw.Write(result);
+                                            string directory = Environment.GetEnvironmentVariable("userprofile");
+                                            using (BinaryWriter bw = new BinaryWriter(new FileStream(directory + "\\pin.bin", FileMode.Create)))
+                                            {
+                                                bw.Write(result);
+                                            }
                                         }
-                                    }
-                                    catch (Exception ex) when (ex is IOException || ex is IOException)
-                                    {
-
-                                        throw;
+                                        catch (Exception ex) when (ex is IOException || ex is IOException)
+                                        {
+                                            throw;
+                                        }
                                     }
                                 }
 
                                 break;
-                            case string comand when comand is "exit" && isAdmin:
+                            case string comand when comand == "exit" && isAdmin:
                                 cliente.Close();
 
                                 break;
-                            case string comand when comand is "shutdown" && isAdmin:
+                            case string comand when comand == "shutdown" && isAdmin:
                                 guardarLista();
                                 isServerRunning = false;
-                                cliente.Close();            // igual sobra
+                                s.Close();
                                 break;
+
                             default:
                                 sw.WriteLine("Comando no reconocido");
                                 sw.Flush();
                                 break;
+
                         }
-                    }
+                    } while (isAdmin && isServerRunning);
                     cliente.Close();
+
                 }
-                catch (IOException)
+                catch (Exception ex) when (ex is IOException)
                 {
-                    //Salta al acceder al socket
-                    //y no estar permitido
                 }
                 Console.WriteLine(
                     "Finished connection with {0}:{1}",
@@ -250,12 +279,7 @@ namespace ServidorDeTurnos
                     string list = sr.ReadToEnd();
                     string[] listedNames = list.Split(';');
 
-                    users = new string[listedNames.Length];
-
-                    for (int i = 0; i < users.Length; i++)
-                    {
-                        users[i] = listedNames[i];
-                    }
+                    users = listedNames;
                 }
             }
             catch (Exception ex) when (ex is IOException || ex is ArgumentException)
@@ -270,7 +294,15 @@ namespace ServidorDeTurnos
             {
                 using (BinaryReader br = new BinaryReader(new FileStream(route, FileMode.Open)))
                 {
-                    return br.ReadInt32();
+                    int pin = br.ReadInt32();
+                    Console.WriteLine(pin);
+
+                    if (999 < pin && pin <= 9999)
+                    {
+                        return pin;
+                    }
+
+                    return -1;
                 }
             }
             catch (Exception ex) when (ex is IOException || ex is ObjectDisposedException)
@@ -281,13 +313,23 @@ namespace ServidorDeTurnos
 
         public void guardarLista()
         {
-            string directory = Environment.GetEnvironmentVariable("userprofile");
-            using (StreamWriter sw = new StreamWriter(directory + "\\queue.txt"))
+            try
             {
-                foreach (string alumnoEnCola in waitQueue)
+                string directory = Environment.GetEnvironmentVariable("userprofile");
+                using (StreamWriter sw = new StreamWriter(directory + "\\queue.txt"))
                 {
-                    sw.WriteLine(alumnoEnCola);
+                    lock (l)
+                    {
+                        foreach (string alumnoEnCola in waitQueue)
+                        {
+                            sw.WriteLine(alumnoEnCola);
+                        }
+                    }
                 }
+            }
+            catch (Exception ex) when (ex is IOException | ex is ArgumentException)
+            {
+
             }
         }
 
@@ -303,7 +345,7 @@ namespace ServidorDeTurnos
                     }
                 }
             }
-            catch (Exception ex) when (ex is IOException || ex is ArgumentException) 
+            catch (Exception ex) when (ex is IOException || ex is ArgumentException)
             {
 
             }

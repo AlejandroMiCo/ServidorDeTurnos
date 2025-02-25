@@ -12,11 +12,6 @@ namespace ServidorDeTurnos
         {
             ShiftServer server = new ShiftServer();
             server.Init();
-
-            Console.WriteLine(server.users.Length);
-
-            Console.ReadLine();
-
         }
     }
 }
