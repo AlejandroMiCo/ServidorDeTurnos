@@ -96,6 +96,7 @@
             this.txtUsuario.Name = "txtUsuario";
             this.txtUsuario.Size = new System.Drawing.Size(347, 20);
             this.txtUsuario.TabIndex = 5;
+            this.txtUsuario.TextChanged += new System.EventHandler(this.txtUsuario_TextChanged);
             // 
             // txtPuerto
             // 
@@ -103,6 +104,7 @@
             this.txtPuerto.Name = "txtPuerto";
             this.txtPuerto.Size = new System.Drawing.Size(347, 20);
             this.txtPuerto.TabIndex = 6;
+            this.txtPuerto.TextChanged += new System.EventHandler(this.txtUsuario_TextChanged);
             // 
             // txtIp
             // 
@@ -110,6 +112,7 @@
             this.txtIp.Name = "txtIp";
             this.txtIp.Size = new System.Drawing.Size(347, 20);
             this.txtIp.TabIndex = 7;
+            this.txtIp.TextChanged += new System.EventHandler(this.txtUsuario_TextChanged);
             // 
             // txtInfo
             // 
